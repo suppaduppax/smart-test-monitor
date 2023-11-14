@@ -18,10 +18,12 @@ Monitor the progress of your SMART selftest.
 
 ## Usage
 ```
-./smart-test-monitor <DISKS>
+./smart-test-monitor [Options] <DISKS>
 
--r SECONDS           Set the refresh interval between smartctl polls
--s SECONDS           Set the update interval of the internal script
+Options               Description
+----------            ---------------
+-r SECONDS            Set the refresh interval between smartctl polls
+-s SECONDS            Set the update interval of the internal script
 ```
 
 ### Examples

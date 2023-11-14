@@ -8,7 +8,13 @@ fi
 
 USAGE=\
 "
-./${0} <DISK>
+./${0} [Options] <DISKS>
+
+Options               Description
+----------            ---------------
+-o                    Only run the script once and then exit without looping
+-r SECONDS            Set the refresh interval between smartctl polls
+-s SECONDS            Set the update interval of the internal script
 "
 
 # How many seconds to wait before polling smartctl to refresh progress
@@ -22,10 +28,13 @@ DISPLAY_MINUTES_THRESHOLD=59
 
 FULL_BAR="▰"
 EMPTY_BAR="▱"
+RUN_ONCE=0
 
 # parse options
-while getopts 'r:s:' option; do
+while getopts 'or:s:' option; do
   case "${option}" in
+    o) readonly RUN_ONCE=1
+        ;;
     r) readonly SMART_PROGRESS_REFRESH_RATE="${OPTARG}"
         ;;
     s) readonly SCRIPT_REFRESH_RATE="${OPTARG}"
@@ -71,8 +80,16 @@ ensure_dev_dir() {
   fi
 }
 
+run_once_wrapper() {
+  if [ "${RUN_ONCE}" -eq 0 ]; then
+    eval "$1"
+  fi
+}
+
 refresh_header() {
-  tput cup 0 0
+  run_once_wrapper "tput cup 0 0"
+
+
   seconds_remaining="$((SMART_PROGRESS_REFRESH_RATE-REFRESH_TIME))"
   min=$((seconds_remaining/60))
   sec=$((seconds_remaining-min*60))
@@ -82,11 +99,12 @@ refresh_header() {
     printf "Refreshing...                   \n"
   else
     printf "Refresh in "
-    [ "${min}" -gt 0 ] && printf '%sm' "${min}"
+    [ "${min}" -gt 0 ] && printf '%sm ' "${min}"
     printf '%ss              \n' "${sec}"
   fi
   printf '+------------------------------------------------------------------------------------------+\n'
 }
+
 
 refresh() {
   disk_num=0
@@ -106,7 +124,7 @@ refresh() {
     printf "%s" "${smart_result}" | grep "Transport protocol:" | grep "SAS" > /dev/null 2>&1
 
     if [ $? -ne 0 ]; then
-      printf "%s) %s is not a SAS disk. Skipping..." "${disk_num}" "${disk}"
+      printf "%s) %s is not a SAS disk. Skipping...\n" "${disk_num}" "${disk}"
       continue
     fi
 
@@ -128,7 +146,7 @@ refresh() {
     est_hrs_remaining="$((est_min_remaining/60))"
 
     # clear the current line
-    tput el
+    run_once_wrapper "tput el"
 
     if [ "${est_min_remaining}" -le "${DISPLAY_MINUTES_THRESHOLD}" ]; then
       remaining="${est_min_remaining}m"
@@ -166,15 +184,20 @@ refresh() {
 }
 
 main() {
-  clear
+  run_once_wrapper "clear"
   REFRESH_TIME="${SMART_PROGRESS_REFRESH_RATE}"
   while : ; do
     refresh_header
     if [ "${REFRESH_TIME}" -ge "${SMART_PROGRESS_REFRESH_RATE}" ]; then
       REFRESH_TIME=0
       refresh $@
-      refresh_header
+      run_once_wrapper "refresh_header"
     fi
+
+    if [ "${RUN_ONCE}" -ne 0 ]; then
+      break
+    fi
+
     sleep "${SCRIPT_REFRESH_RATE}"
     REFRESH_TIME="$((REFRESH_TIME+SCRIPT_REFRESH_RATE))"
   done
