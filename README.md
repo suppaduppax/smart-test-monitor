@@ -1,9 +1,13 @@
 # smart-test-monitor
 Monitor the progress of your SMART selftest.
 
+
+> **Currently only supports SAS drives.**
+
+
 ```
 +------------------------------------------------------------------------------------------+
-| SMART Test Progress Monitor                                                              |
+ SMART Test Progress Monitor - Refresh in 9m 23s
 +------------------------------------------------------------------------------------------+
 1) /dev/sdb [▰▰▰▰▰▰▰▱▱▱][70%] 12h / 18h (5h remaining)
 2) /dev/sdd [▰▰▰▰▰▱▱▱▱▱][47%] 8h / 18h (9h remaining)
