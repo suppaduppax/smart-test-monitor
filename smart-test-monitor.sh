@@ -1,10 +1,21 @@
 #!/bin/sh
+# Check if running as root
+if [ "$(id -u)" -ne 0 ]; then
+  echo "ERROR: Must be run as root" >&2
+  exit 2
+fi
+
 if [ $# -eq 0 ]; then
   echo "Must specificy at least 1 disk."
   exit 1
 fi
 
-DELAY=630
+# How many seconds to wait before polling smartctl to refresh progress
+SMART_PROGRESS_REFRESH_RATE=600
+
+# How many seconds to sleep before updating the remaining time before refresh
+SCRIPT_REFRESH_RATE=1
+
 FULL_BAR="▰"
 EMPTY_BAR="▱"
 
@@ -31,11 +42,22 @@ ensure_dev_dir() {
   fi
 }
 
-clear
-while : ; do
-  echo '+------------------------------------------------------------------------------------------+'
-  echo '| SMART Test Progress Monitor                                                              |'
-  echo '+------------------------------------------------------------------------------------------+'
+refresh_header() {
+  tput cup 0 0
+  seconds_remaining="$((SMART_PROGRESS_REFRESH_RATE-REFRESH_TIME))"
+  min=$((seconds_remaining/60))
+  sec=$((seconds_remaining-min*60))
+  printf '+------------------------------------------------------------------------------------------+\n'
+  printf " SMART Test Progress Monitor - "
+  if [ "${seconds_remaining}" -le 0 ]; then
+    printf "Refeeshing...\n"
+  else
+    printf "Refresh in %sm %ss\n" "${min}" "${sec}"
+  fi
+  printf '+------------------------------------------------------------------------------------------+\n'
+}
+
+refresh() {
   disk_num=0
   for disk_arg in $@; do
     disk="$(ensure_dev_dir ${disk_arg})"
@@ -99,6 +121,21 @@ while : ; do
       "${remaining}"
 
   done
-  sleep "${DELAY}"
-  tput cup 0 0
-done
+}
+
+main() {
+  clear
+  REFRESH_TIME="${SMART_PROGRESS_REFRESH_RATE}"
+  while : ; do
+    refresh_header
+    if [ "${REFRESH_TIME}" -ge "${SMART_PROGRESS_REFRESH_RATE}" ]; then
+      REFRESH_TIME=0
+      refresh $@
+    fi
+    sleep "${SCRIPT_REFRESH_RATE}"
+    REFRESH_TIME="$((REFRESH_TIME+SCRIPT_REFRESH_RATE))"
+  done
+}
+
+# Entrypoint
+main $@
