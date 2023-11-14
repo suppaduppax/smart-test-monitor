@@ -1,6 +1,10 @@
 # smart-test-monitor
 Monitor the progress of your SMART selftest.
 
+
+> **Currently only supports SAS drives.**
+
+
 ```
 +------------------------------------------------------------------------------------------+
 | SMART Test Progress Monitor                                                              |
