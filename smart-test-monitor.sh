@@ -1,177 +1,104 @@
 #!/bin/sh
+if [ $# -eq 0 ]; then
+  echo "Must specificy at least 1 disk."
+  exit 1
+fi
 
-# Terminal colour strings
-readonly RED='\033[0;31m'
-readonly GRAY='\e[36m'
-readonly GREEN='\033[0;32m'
-readonly NC='\033[0m'              # No Color
+DELAY=630
+FULL_BAR="▰"
+EMPTY_BAR="▱"
 
-
-# Threshholds for power
-readonly FAIL_POWER_ON_HOURS=70000
-readonly FAIL_BYTES_WRITTEN=1000000 # need to verify this
-
-errors=0
-
-get_device_type() {
-	result=$(printf '%s' "${1}" | grep "Transport protocol:" | awk '{print $3}' | tr -d '\n')
-	[ -z "$result" ] && result=$(echo "${1}" | grep "ATA Version is:" | awk '{print $1}' | tr -d '\n')
-	if [ -z "$result" ]; then
-		echo "Cannot determine device type..."
-		exit 1
-	fi
-
-	printf "${result}"
-}
-
-get_raw_value() {
-  for last_value in $@; do true; done
-	echo "${last_value}"
-}
-
-print_result() {
-	raw_value="$(get_raw_value $@)"
-	if [ "${raw_value}" -ne 0 ]; then
-		printf "${RED}[ FAIL ] "
-		errors=$((errors+1))
-	else
-		printf "${GREEN}[ PASS ] ${NC}"
-	fi
-
-	printf "%3s %-22s = %3d ${NC}\n" "$1" "$2" "${raw_value}"
-}
-
-check_pass_sata() {
-	for smart_num in $@; do
-		smart_value="$(printf '%s' "${SMART_RESULT}" | grep "${smart_num}")"
-		if [ ! -z "${smart_value}" ]; then
-			print_result "${smart_value}"
-		fi
-	done
-}
-
-check_pass_sas() {
-	read_errors=$(printf '%s' "${SMART_RESULT}" | grep "read: " | awk '{print $8}' | tr -d '\n')
-	write_errors=$(printf '%s' "${SMART_RESULT}" | grep "write: " | awk '{print $8}' | tr -d '\n')
-	verify_errors=$(printf '%s' "${SMART_RESULT}" | grep "verify: " | awk '{print $8}' | tr -d '\n')
-	if [ "${read_errors}" -gt 0 ]; then
-		printf "${RED}[ FAIL ] "
-		errors=$((errors+1))
-	else
-		printf "${GREEN}[ SUCCESS ] "
-	fi
-	printf "Read uncorrectable errors: %1s${NC}\n" "$read_errors"
-
-	if [ "${write_errors}" -gt 0 ]; then
-		printf "${RED}[ FAIL ] "
-		errors=$((errors+1))
-	else
-		printf "${GREEN}[ SUCCESS ] "
-	fi
-	printf "Write uncorrectable errors: %1s${NC}\n" "${write_errors}"
-
-	if [ "${verify_errors}" -gt 0 ]; then
-		printf "${RED}[ FAIL ] "
-		errors=$((errors+1))
-	else
-		printf "${GREEN}[ SUCCESS ] "
-	fi
-	printf "Verify uncorrectable errors: %1s${NC}\n" "${verify_errors}"
-
-	power_on_hours=$(printf '%s' "${SMART_RESULT}" | grep "Accumulated power on time" | sed  's/:/ /g' | awk '{print $7}' | tr -d '\n')
-	if [ "${power_on_hours}" -gt "${FAIL_POWER_ON_HOURS}" ]; then
-		printf "${RED}[ FAIL ] "
-		errors=$((errors+1))
-	else
-		printf "${GREEN}[ SUCCESS ] "
-	fi
-	printf "Accumulated power on hours: %1s${NC}\n" "$power_on_hours"
-
-	bytes_written_decimal=$(printf '%s' "${SMART_RESULT}" | grep 'write:' | awk '{print $7}')
-	bytes_written=$(printf "%.0f" "${bytes_written_decimal}")
-	if [ "${bytes_written}" -gt "${FAIL_BYTES_WRITTEN}" ]; then
-		printf "${RED}[ FAIL ] "
-		errors=$((errors+1))
-	else
-		printf "${GREEN}[ SUCCESS ] "
-	fi
-	printf "Bytes written: %1s${NC}\n" "$bytes_written"
-
-}
-
-check_dev() {
-	for disk in "$@"; do
-	if [ -z "$disk" ]; then
-		echo "Must specify disk device ie /dev/da0"
-		exit 1
-	fi
-
-  printf "%s" "${disk}" | grep "/dev/"
-  [ "$?" -ne 0 ] && disk="/dev/${disk}"
-
-	SMART_RESULT=$(smartctl -a "${disk}")
-	printf "%s" "${SMART_RESULT}" | grep "$disk: Unable to detect device type" > /dev/null 2>&1
-
-  if [ "$?" -eq 0 ]; then
-		echo "Cannot find device: '$disk'"
-		exit 1
-	fi
-
-	echo "------------------------------------------"
-	echo "Checking SMART data for $disk"
-	echo "------------------------------------------"
-
-	check_pass_sata "5.*Reallocated_Sector_Ct" "184.*End-to-End_Error" "187.*Reported_Uncorrect" "188.*Command_Timeout" "197.*Current_Pending_Sector" "198.*Offline_Uncorrectable"
-
-	done
-
-	echo "------------------------------------------"
-	echo "Completed with $errors errors!"
-	echo "------------------------------------------"
-}
-
-
-#check_file() {
-	for arg in $@; do
-      src="${arg}"
-    if printf '%s' "${arg}" | grep "/dev/" > /dev/null 2>&1; then
-      echo "FOUND"
-      SMART_RESULT="$(smartctl --all "${arg}")"
+print_progress_bar() {
+  # $1: percent
+  FULL_BARs=$((${1}/100+1))
+  printf "["
+  for i in $(seq 0 9); do
+    if [ "$((i*10))" -lt "$1" ]; then
+      printf "%s" "${FULL_BAR}"
     else
-      # first check if it exists in /dev/
-      if [ -f "/dev/${arg}" ]; then
-        SMART_RESULT="$(smartctl --all "/dev/${arg}")"
-        src="/dev/${arg}"
-      elif [ -f "${arg}" ]; then
-        # source is not in /dev/ and is a file
-        SMART_RESULT="$(cat "${arg}")"
-  		else
-        echo "Could not find file $file"
-			  exit 1
-		  fi
+      printf "%s" "${EMPTY_BAR}"
+    fi
+  done
+  printf "]"
+}
+
+ensure_dev_dir() {
+  printf "%s" "${1}" | grep "^/dev/" > /dev/null 2>&1
+  if [ "$?" -eq 1 ]; then
+    printf "/dev/%s" "${1}"
+  else
+    printf "${1}"
+  fi
+}
+
+clear
+while : ; do
+  echo '+------------------------------------------------------------------------------------------+'
+  echo '| SMART Test Progress Monitor                                                              |'
+  echo '+------------------------------------------------------------------------------------------+'
+  disk_num=0
+  for disk_arg in $@; do
+    disk="$(ensure_dev_dir ${disk_arg})"
+    disk_num=$((disk_num+1))
+    smart_result="$(smartctl -a "${disk}")"
+
+    if [ $? -eq 2 ]; then
+      printf "Invalid disk: %s\n" "${disk}"
+      exit 2
+    elif [ $? -eq 0 ]; then
+      printf "Error handling: %s (Error code: %s)\n" "${disk}" "$?"
+      exit $?
     fi
 
-    device_type="$(get_device_type "${SMART_RESULT}")"
-    if [ "$?" -ne 0 ]; then
-      printf 'Error finding device type... skipping\n'
+    printf "%s" "${smart_result}" | grep "Transport protocol:" | grep "SAS" > /dev/null 2>&1
+
+    if [ $? -ne 0 ]; then
+      printf "%s) %s is not a SAS disk. Skipping..." "${disk_num}" "${disk}"
       continue
     fi
 
-		echo "------------------------------------------"
-		echo "Checking SMART data for ${src} (${device_type})"
-		echo "------------------------------------------"
+    percent_remaining="$(printf "%s" "${smart_result}" | grep "remaining" | grep -o "[0-9]*%" | sed "s/%//g")"
+    percent_complete="$((100-percent_remaining))"
+    est_total_min="$(printf "%s" "${smart_result}" | grep -o "\[[0-9. ]* minutes\]" | awk '{gsub(/\[|\]/, ""); print $1}' | grep -o "^[0-9]*")"
+    est_total_hrs="$((est_total_min/60))"
+    est_percent_elapsed="$((100-${percent_remaining}))"
 
-		if [ "${device_type}" = "SAS" ]; then
-			check_pass_sas
-		else
-			check_pass_sata "5.*Reallocated_Sector_Ct" "184.*End-to-End_Error" "187.*Reported_Uncorrect" "188.*Command_Timeout" "197.*Current_Pending_Sector" "198.*Offline_Uncorrectable"
-		fi
-	done
+    est_elapsed_min="$((est_total_min*percent_complete/100))"
+    est_elapsed_hrs="$((est_elapsed_min/60))"
 
-	echo "------------------------------------------"
-	echo "Completed with $errors errors!"
-	echo "------------------------------------------"
-#}
+    est_min_remaining="$((est_total_min*percent_remaining/100))"
+    est_hrs_remaining="$((est_min_remaining/60))"
 
-#	check_file $@
+    tput el
 
+    if [ "${est_total_min}" -le 120 ]; then
+      remaining="${est_min_remaining}m"
+    else
+      remaining="${est_hrs_remaining}h"
+    fi
+
+    if [ "${est_elapsed_min}" -le 120 ]; then
+      elapsed="${est_elapsed_min}m"
+    else
+      elapsed="${est_elapsed_hrs}h"
+    fi
+
+    if [ "${est_total_min}" -le 120 ]; then
+      total="${est_total_min}m"
+    else
+      total="${est_total_hrs}h"
+    fi
+
+    printf '%s) %s %s[%s] %s / %s (%s remaining)\n' \
+      "${disk_num}" \
+      "${disk}" \
+      "$(print_progress_bar "$((100-percent_remaining))")" \
+      "${percent_complete}%" \
+      "${elapsed}" \
+      "${total}" \
+      "${remaining}"
+
+  done
+  sleep "${DELAY}"
+  tput cup 0 0
+done
