@@ -12,6 +12,8 @@ USAGE=\
 
 Options               Description
 ----------            ---------------
+-b style              Set the progress bar style. The default style is 'normal'. 
+                      Available styles are: normal, simple, large
 -o                    Only run the script once and then exit without looping
 -r SECONDS            Set the refresh interval between smartctl polls
 -s SECONDS            Set the update interval of the internal script
@@ -31,13 +33,27 @@ EMPTY_BAR="▱"
 RUN_ONCE=0
 
 # parse options
-while getopts 'or:s:' option; do
+while getopts 'or:s:b:' option; do
   case "${option}" in
-    o) readonly RUN_ONCE=1
+    o)  readonly RUN_ONCE=1
         ;;
-    r) readonly SMART_PROGRESS_REFRESH_RATE="${OPTARG}"
+    r)  readonly SMART_PROGRESS_REFRESH_RATE="${OPTARG}"
         ;;
-    s) readonly SCRIPT_REFRESH_RATE="${OPTARG}"
+    s)  readonly SCRIPT_REFRESH_RATE="${OPTARG}"
+        ;;
+    b)  if [ "${OPTARG}" = "normal" ]; then
+          FULL_BAR="▰"
+          EMPTY_BAR="▱"
+        elif [ "${OPTARG}" = "simple" ]; then
+          FULL_BAR="="
+          EMPTY_BAR="·"
+        elif [ "${OPTARG}" = "large" ]; then
+          FULL_BAR="▓"
+          EMPTY_BAR="░"
+        else
+          printf "Illegal option for -b: '%s'. Available options are normal, simple, large \n"
+          exit 2
+        fi
         ;;
     :)  printf 'Missing argument for -%s\n' "${OPTARG}" >&2
         echo "${USAGE}" >&2
