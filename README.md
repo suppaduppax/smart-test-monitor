@@ -22,7 +22,7 @@ Monitor the progress of your SMART selftest.
 
 Options               Description
 ----------            ---------------
--b style              Set the progress bar style. The default style is 'normal'.
+-b STYLE              Set the progress bar style. The default style is 'normal'.
                       Available styles are: normal, simple, large
 -o                    Only run the script once and then exit without looping
 -r SECONDS            Set the refresh interval between smartctl polls
