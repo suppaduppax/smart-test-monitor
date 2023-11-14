@@ -17,7 +17,12 @@ Monitor the progress of your SMART selftest.
 ```
 
 ## Usage
-`./smart-test-monitor <DISKS>`
+```
+./smart-test-monitor <DISKS>
+
+-r SECONDS           Set the refresh interval between smartctl polls
+-s SECONDS           Set the update interval of the internal script
+```
 
 ### Examples
 For single disk: 

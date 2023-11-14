@@ -6,10 +6,10 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 2
 fi
 
-if [ $# -eq 0 ]; then
-  echo "Must specificy at least 1 disk."
-  exit 1
-fi
+USAGE=\
+"
+./${0} <DISK>
+"
 
 # How many seconds to wait before polling smartctl to refresh progress
 SMART_PROGRESS_REFRESH_RATE=600
@@ -22,6 +22,31 @@ DISPLAY_MINUTES_THRESHOLD=59
 
 FULL_BAR="▰"
 EMPTY_BAR="▱"
+
+# parse options
+while getopts 'r:s:' option; do
+  case "${option}" in
+    r) readonly SMART_PROGRESS_REFRESH_RATE="${OPTARG}"
+        ;;
+    s) readonly SCRIPT_REFRESH_RATE="${OPTARG}"
+        ;;
+    :)  printf 'Missing argument for -%s\n' "${OPTARG}" >&2
+        echo "${USAGE}" >&2
+        exit 2
+        ;;
+   \?)  printf 'Illegal option: -%s\n' "${OPTARG}" >&2
+        echo "${USAGE}" >&2
+        exit 2
+        ;;
+  esac
+done
+shift $(( OPTIND - 1 ))
+
+if [ -z "$1" ]; then
+  echo "ERROR: Missing disk argument" >&2
+  echo "${USAGE}" >&2
+  exit 2
+fi
 
 print_progress_bar() {
   # $1: percent
@@ -54,9 +79,11 @@ refresh_header() {
   printf '+------------------------------------------------------------------------------------------+\n'
   printf " SMART Test Progress Monitor - "
   if [ "${seconds_remaining}" -le 0 ]; then
-    printf "Refeeshing...                   \n"
+    printf "Refreshing...                   \n"
   else
-    printf "Refresh in %sm %ss              \n" "${min}" "${sec}"
+    printf "Refresh in "
+    [ "${min}" -gt 0 ] && printf '%sm' "${min}"
+    printf '%ss              \n' "${sec}"
   fi
   printf '+------------------------------------------------------------------------------------------+\n'
 }
@@ -146,6 +173,7 @@ main() {
     if [ "${REFRESH_TIME}" -ge "${SMART_PROGRESS_REFRESH_RATE}" ]; then
       REFRESH_TIME=0
       refresh $@
+      refresh_header
     fi
     sleep "${SCRIPT_REFRESH_RATE}"
     REFRESH_TIME="$((REFRESH_TIME+SCRIPT_REFRESH_RATE))"
