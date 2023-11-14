@@ -18,7 +18,7 @@ Monitor the progress of your SMART selftest.
 
 ## Usage
 ```
-./smart-test-monitor [Options] <DISKS>
+./smart-test-monitor.sh [Options] <DISKS>
 
 Options               Description
 ----------            ---------------
