@@ -1,4 +1,5 @@
 #!/bin/sh
+
 # Check if running as root
 if [ "$(id -u)" -ne 0 ]; then
   echo "ERROR: Must be run as root" >&2
@@ -15,6 +16,9 @@ SMART_PROGRESS_REFRESH_RATE=600
 
 # How many seconds to sleep before updating the remaining time before refresh
 SCRIPT_REFRESH_RATE=1
+
+# At how many minutes should time be displayd in minutes instead of hours (inclusive)
+DISPLAY_MINUTES_THRESHOLD=59
 
 FULL_BAR="▰"
 EMPTY_BAR="▱"
@@ -50,9 +54,9 @@ refresh_header() {
   printf '+------------------------------------------------------------------------------------------+\n'
   printf " SMART Test Progress Monitor - "
   if [ "${seconds_remaining}" -le 0 ]; then
-    printf "Refeeshing...\n"
+    printf "Refeeshing...                   \n"
   else
-    printf "Refresh in %sm %ss\n" "${min}" "${sec}"
+    printf "Refresh in %sm %ss              \n" "${min}" "${sec}"
   fi
   printf '+------------------------------------------------------------------------------------------+\n'
 }
@@ -80,46 +84,57 @@ refresh() {
     fi
 
     percent_remaining="$(printf "%s" "${smart_result}" | grep "remaining" | grep -o "[0-9]*%" | sed "s/%//g")"
+    if [ -z "${percent_remaining}" ]; then
+      printf '%s) %s - Cannot find any SMART test in progress. Either it is complete or was never started\n' \
+      "${disk_num}" \
+      "${disk}"
+      continue
+    fi
+
     percent_complete="$((100-percent_remaining))"
     est_total_min="$(printf "%s" "${smart_result}" | grep -o "\[[0-9. ]* minutes\]" | awk '{gsub(/\[|\]/, ""); print $1}' | grep -o "^[0-9]*")"
     est_total_hrs="$((est_total_min/60))"
     est_percent_elapsed="$((100-${percent_remaining}))"
-
     est_elapsed_min="$((est_total_min*percent_complete/100))"
     est_elapsed_hrs="$((est_elapsed_min/60))"
-
     est_min_remaining="$((est_total_min*percent_remaining/100))"
     est_hrs_remaining="$((est_min_remaining/60))"
 
+    # clear the current line
     tput el
 
-    if [ "${est_total_min}" -le 120 ]; then
+    if [ "${est_min_remaining}" -le "${DISPLAY_MINUTES_THRESHOLD}" ]; then
       remaining="${est_min_remaining}m"
     else
       remaining="${est_hrs_remaining}h"
     fi
 
-    if [ "${est_elapsed_min}" -le 120 ]; then
+    if [ "${est_elapsed_min}" -le "${DISPLAY_MINUTES_THRESHOLD}" ]; then
       elapsed="${est_elapsed_min}m"
     else
       elapsed="${est_elapsed_hrs}h"
     fi
 
-    if [ "${est_total_min}" -le 120 ]; then
+    if [ "${est_total_min}" -le "${DISPLAY_MINUTES_THRESHOLD}" ]; then
       total="${est_total_min}m"
     else
       total="${est_total_hrs}h"
     fi
 
-    printf '%s) %s %s[%s] %s / %s (%s remaining)\n' \
+    printf '%s) %s %s[%s]' \
       "${disk_num}" \
       "${disk}" \
       "$(print_progress_bar "$((100-percent_remaining))")" \
       "${percent_complete}%" \
-      "${elapsed}" \
-      "${total}" \
-      "${remaining}"
 
+    if [ "${est_min_remaining}" -gt 0 ]; then
+      printf ' %s / %s (%s remaining)\n' \
+        "${elapsed}" \
+        "${total}" \
+        "${remaining}"
+    else
+      printf ' --- Complete! --- \n'
+    fi
   done
 }
 
