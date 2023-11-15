@@ -105,8 +105,7 @@ run_once_wrapper() {
 refresh_header() {
   run_once_wrapper "tput cup 0 0"
 
-
-  seconds_remaining="$((SMART_PROGRESS_REFRESH_RATE-REFRESH_TIME))"
+#  seconds_remaining="$((SMART_PROGRESS_REFRESH_RATE-REFRESH_TIME))"
   min=$((seconds_remaining/60))
   sec=$((seconds_remaining-min*60))
   printf '+------------------------------------------------------------------------------------------+\n'
@@ -120,7 +119,6 @@ refresh_header() {
   fi
   printf '+------------------------------------------------------------------------------------------+\n'
 }
-
 
 refresh() {
   disk_num=0
@@ -160,6 +158,12 @@ refresh() {
     est_elapsed_hrs="$((est_elapsed_min/60))"
     est_min_remaining="$((est_total_min*percent_remaining/100))"
     est_hrs_remaining="$((est_min_remaining/60))"
+
+    # see if remaining time is less than refresh time
+    if [ "${est_min_remaining}" -lt "${SMART_PROGRESS_REFRESH_RATE}"] && \
+       [ "$((est_min_remaining*60))" -lt "${seconds_remaining}" ]; then
+        seconds_remaining="$((est_min_remaining*60))"
+    fi
 
     # clear the current line
     run_once_wrapper "tput el"
@@ -202,6 +206,7 @@ refresh() {
 main() {
   run_once_wrapper "clear"
   REFRESH_TIME="${SMART_PROGRESS_REFRESH_RATE}"
+  seconds_remaining="${SMART_PROGRESS_REFRESH_RATE}"
   while : ; do
     refresh_header
     if [ "${REFRESH_TIME}" -ge "${SMART_PROGRESS_REFRESH_RATE}" ]; then
@@ -216,6 +221,7 @@ main() {
 
     sleep "${SCRIPT_REFRESH_RATE}"
     REFRESH_TIME="$((REFRESH_TIME+SCRIPT_REFRESH_RATE))"
+    seconds_remaining="$((seconds_remaining-SCRIPT_REFRESH_RATE))"
   done
 }
 
