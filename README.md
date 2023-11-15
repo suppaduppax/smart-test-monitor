@@ -32,12 +32,12 @@ Options               Description
 ### Examples
 For single disk: 
 ```
-./smart-test-monitor /dev/sda
+./smart-test-monitor.sh /dev/sda
 ```
 
 For multiple disks:
 ```
-./smart-test-monitor /dev/sda sdb sdc
+./smart-test-monitor.sh /dev/sda sdb sdc
 ```
 
 > `/dev/` directory may be omitted
