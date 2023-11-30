@@ -12,7 +12,7 @@ USAGE=\
 
 Options               Description
 ----------            ---------------
--b STYLE              Set the progress bar style. The default style is 'normal'. 
+-b STYLE              Set the progress bar style. The default style is 'normal'.
                       Available styles are: normal, simple, large
 -o                    Only run the script once and then exit without looping
 -r SECONDS            Set the refresh interval between smartctl polls
@@ -138,13 +138,14 @@ refresh() {
     fi
 
     printf "%s" "${smart_result}" | grep "Transport protocol:" | grep "SAS" > /dev/null 2>&1
-
-    if [ $? -ne 0 ]; then
-      printf "%s) %s is not a SAS disk. Skipping...\n" "${disk_num}" "${disk}"
-      continue
+    if [ $? -eq 0 ]; then
+      percent_remaining="$(printf "%s" "${smart_result}" | grep "remaining" | grep -o "[0-9]*%" | sed "s/%//g")"
+      est_total_min="$(printf "%s" "${smart_result}" | grep -o "\[[0-9. ]* minutes\]" | awk '{gsub(/\[|\]/, ""); print $1}' | grep -o "^[0-9]*")"
+    else
+      percent_remaining="$(printf "%s" "${smart_result}" | grep "remaining" | grep -o "[0-9]*%" | sed "s/%//g")"
+      est_total_min="$(printf "%s" "${smart_result}" | grep -A1 "Extended self-test routine" | grep -o '([0-9 ]*)' | awk '{ gsub(/\(|\)/, ""); print $1; }')"
     fi
 
-    percent_remaining="$(printf "%s" "${smart_result}" | grep "remaining" | grep -o "[0-9]*%" | sed "s/%//g")"
     if [ -z "${percent_remaining}" ]; then
       printf '%s) %s - Cannot find any SMART test in progress. Either it is complete or was never started\n' \
       "${disk_num}" \
@@ -153,7 +154,6 @@ refresh() {
     fi
 
     percent_complete="$((100-percent_remaining))"
-    est_total_min="$(printf "%s" "${smart_result}" | grep -o "\[[0-9. ]* minutes\]" | awk '{gsub(/\[|\]/, ""); print $1}' | grep -o "^[0-9]*")"
     est_total_hrs="$((est_total_min/60))"
     est_percent_elapsed="$((100-${percent_remaining}))"
     est_elapsed_min="$((est_total_min*percent_complete/100))"
